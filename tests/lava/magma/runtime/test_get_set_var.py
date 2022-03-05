@@ -1,7 +1,6 @@
 # Copyright (C) 2021 Intel Corporation
 # SPDX-License-Identifier: BSD-3-Clause
 # See: https://spdx.org/licenses/
-
 import numpy as np
 import unittest
 
@@ -128,6 +127,20 @@ class TestGetSetVar(unittest.TestCase):
         process.run(condition=RunSteps(num_steps=5), run_cfg=run_config)
         assert np.array_equal(process.u.get(), expected_result_u)
         assert np.array_equal(process.v.get(), expected_result_v)
+        process.stop()
+
+    def test_get_set_variable_set_before_next_run(self):
+        process = SimpleProcess(shape=(2, 2))
+        simple_sync_domain = SyncDomain("simple", LoihiProtocol(), [process])
+        run_config = SimpleRunConfig(sync_domains=[simple_sync_domain])
+        process.run(condition=RunSteps(num_steps=10), run_cfg=run_config)
+
+        # Retrieve value of u
+        expected_result_u = np.array([[7, 8], [9, 10]], dtype=np.int32)
+        process.u.set(expected_result_u)
+        # Check if values stay modified after another execution
+        process.run(condition=RunSteps(num_steps=1), run_cfg=run_config)
+        assert np.array_equal(process.u.get(), expected_result_u)
         process.stop()
 
 

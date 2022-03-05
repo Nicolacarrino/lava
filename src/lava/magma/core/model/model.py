@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # See: https://spdx.org/licenses/
 from __future__ import annotations
+
 import typing as ty
+import logging
 from abc import ABC
 
 if ty.TYPE_CHECKING:
@@ -56,7 +58,11 @@ class AbstractProcessModel(ABC):
     required_resources: ty.List[ty.Type[AbstractResource]] = []
     tags: ty.List[str] = []
 
-    def __init__(self, proc_params: ty.Dict[str, ty.Any]) -> None:
+    def __init__(self,
+                 proc_params: ty.Dict[str, ty.Any],
+                 loglevel: int = logging.WARNING) -> None:
+        self.log = logging.getLogger(__name__)
+        self.log.setLevel(loglevel)
         self.proc_params: ty.Dict[str, ty.Any] = proc_params
 
     def __repr__(self):
@@ -77,23 +83,3 @@ class AbstractProcessModel(ABC):
             + " has tags   "
             + tags
         )
-
-    # ToDo: (AW) Should AbstractProcessModel even have a run() method? What
-    #  if a sub class like AbstractCProcessModel for a LMT does not even need
-    #  a 'run'?
-    def run(self):
-        raise NotImplementedError("'run' method is not implemented.")
-
-    # ToDo: What does this function do here? The AbstractProcModel can't
-    #  depend on one specific Python implementation of ports/channels. It can
-    #  probably not even have a start function. Because for a CProcModel
-    #  running on LMT there might not even be Python start function to call.
-    #  Starting the ports is likely the RuntimeService's or Builder's job
-    #  which is what makes a process run on a certain compute resource.
-    def start(self):
-        # Store the list of csp_ports. Start them here.
-        raise NotImplementedError
-        # TODO: Iterate over all inports and outports of the process
-        # and start them
-
-        self.run()

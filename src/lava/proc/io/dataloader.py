@@ -113,7 +113,7 @@ class AbstractPyStateDataloaderModel(AbstractPyDataloaderModel):
         self.ground_truth.send(self.ground_truth_array())
 
     def post_guard(self) -> None:
-        return (self.current_ts - 1) % self.interval == self.offset
+        return (self.time_step - 1) % self.interval == self.offset
 
     def run_post_mgmt(self) -> None:
         data, self.ground_truth_state = self.dataset[self.sample_id]
@@ -122,6 +122,7 @@ class AbstractPyStateDataloaderModel(AbstractPyDataloaderModel):
         self.sample_id += 1
         if self.sample_id == len(self.dataset):
             self.sample_id = 0
+        self.state.wait()  # ensures write() has finished before moving on
 
 
 @implements(proc=StateDataloader, protocol=LoihiProtocol)
@@ -181,7 +182,7 @@ class AbstractPySpikeDataloaderModel(AbstractPyDataloaderModel):
         self.sample_time += 1
 
     def post_guard(self) -> None:
-        return (self.current_ts - 1) % self.interval == self.offset
+        return (self.time_step - 1) % self.interval == self.offset
 
     def run_post_mgmt(self) -> None:
         data, self.ground_truth_state = self.dataset[self.sample_id]

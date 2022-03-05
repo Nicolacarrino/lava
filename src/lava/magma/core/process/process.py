@@ -1,9 +1,9 @@
 # Copyright (C) 2021 Intel Corporation
 # SPDX-License-Identifier: BSD-3-Clause
 # See: https://spdx.org/licenses/
+import logging
 import typing as ty
 from _collections import OrderedDict
-
 from lava.magma.compiler.executable import Executable
 from lava.magma.core.process.interfaces import \
     AbstractProcessMember, IdGeneratorSingleton
@@ -144,7 +144,7 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
 
     ProcessModels enable seamless cross-platform execution of processes. In
     particular they allow to build applications or algorithms using processes
-    agnostic of the ProcessModel chosen at compile current_ts. There are two
+    agnostic of the ProcessModel chosen at compile time. There are two
     broad categories of ProcessModels:
     1. LeafProcessModels allow to implement the behavior of a process
     directly in different languages for a particular compute resource.
@@ -200,7 +200,7 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
     'compile(..)' or 'run(..)' on any of them compiles and runs all of them
     automatically.
 
-    At compile current_ts, the user must provide the Lava compiler with a
+    At compile time, the user must provide the Lava compiler with a
     specific instance of a RunConfig class. A RunConfig class represents a set
     of rules that allows the compiler to select one and only one ProcessModel
     of a specific Process to be compiled for execution with specific compute
@@ -215,7 +215,7 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
     the execution of a set of processes can either be paused or stopped by
     calling the corresponding 'pause()' or 'stop()' methods.
 
-    In order to save current_ts setting up processes for future use, processes
+    In order to save time setting up processes for future use, processes
     can also be saved and reloaded from disk.
     """
 
@@ -227,6 +227,31 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
         self.id: int = ProcessServer().register(self)
 
         self.name: str = kwargs.pop("name", f"Process_{self.id}")
+
+        # Setup Logging
+        self.loglevel: int = kwargs.pop("loglevel", logging.WARNING)
+        self.loglevelconsole: int = kwargs.pop("loglevelconsole", logging.ERROR)
+        self.logfile: str = kwargs.pop("logfile", "lava.log")
+        self.logfileenable: bool = bool(kwargs.pop("logfileenable", False))
+        self.log = logging.getLogger()
+
+        formatter = logging.Formatter(
+            '%(asctime)s:%(levelname)s: %(name)s - %(message)s',
+            datefmt='%m/%d/%Y %I:%M:%S%p')
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(self.loglevelconsole)
+        console_handler.setFormatter(formatter)
+
+        if self.logfileenable:
+            logging.basicConfig(
+                filename=self.logfile,
+                level=self.loglevel,
+                format='%(asctime)s:%(levelname)s: %(name)s - %(message)s',
+                datefmt='%m/%d/%Y %I:%M:%S%p'
+            )
+
+        self.log.addHandler(console_handler)
 
         # kwargs will be used for ProcessModel initialization later
         self.init_args: dict = kwargs
@@ -344,7 +369,7 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
             ProcessModel for each compiled process.
         """
         from lava.magma.compiler.compiler import Compiler
-        compiler = Compiler()
+        compiler = Compiler(loglevel=self.loglevel)
         return compiler.compile(self, run_cfg)
 
     def save(self, path: str):
@@ -389,16 +414,11 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
             :param run_cfg: RunConfig is used by compiler to select a
             ProcessModel for each compiled process.
         """
-
-        if not condition.blocking:
-            # Currently non-blocking execution is not implemented
-            raise NotImplementedError("Non-blocking Execution is currently not"
-                                      " supported. Please use blocking=True.")
-
         if not self._runtime:
             executable = self.compile(run_cfg)
             self._runtime = Runtime(executable,
-                                    ActorType.MultiProcessing)
+                                    ActorType.MultiProcessing,
+                                    loglevel=self.loglevel)
             self._runtime.initialize()
 
         self._runtime.start(condition)
@@ -406,12 +426,12 @@ class AbstractProcess(metaclass=ProcessPostInitCaller):
     def wait(self):
         """Waits until end of process execution or for as long as
         RunCondition is met by blocking execution at command line level."""
-        if not self.runtime:
+        if self.runtime:
             self.runtime.wait()
 
     def pause(self):
         """Pauses process execution while running in non-blocking mode."""
-        if not self.runtime:
+        if self.runtime:
             self.runtime.pause()
 
     def stop(self):
